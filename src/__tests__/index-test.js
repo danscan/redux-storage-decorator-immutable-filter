@@ -1,0 +1,207 @@
+/* global it, describe, expect, jest */
+jest.unmock('immutable');
+jest.unmock('../');
+
+import { Map } from 'immutable';
+import filter from '../';
+
+describe('decorator', () => {
+    it('should proxy load to engine.load', () => {
+        const load = jest.fn();
+        const engine = filter({ load });
+
+        engine.load();
+
+        expect(load).toBeCalled();
+    });
+
+    it('should have a empty whitelist by default', () => {
+        const save = jest.fn();
+        const engine = filter({ save });
+
+        engine.save({ key: 'value' });
+
+        expect(save).toBeCalledWith({});
+    });
+
+    it('should save whitelisted keys', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, ['key']);
+
+        engine.save({ key: 'value', ignored: true });
+
+        expect(save).toBeCalledWith({ key: 'value' });
+    });
+
+    it('should save whitelisted keys paths', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [['some', 'key']]);
+
+        engine.save({ some: { key: 'value' }, ignored: true });
+
+        expect(save).toBeCalledWith({ some: { key: 'value' } });
+    });
+
+    it('should ignore not existing but whitelisted keys', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, ['key']);
+
+        engine.save({ ignored: true });
+
+        expect(save).toBeCalledWith({});
+    });
+
+    it('should ignore not existing but whitelisted key paths', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [['some', 'key']]);
+
+        engine.save({ ignored: true });
+
+        expect(save).toBeCalledWith({});
+    });
+
+    it('should support whitelisting an immutable', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [['some', 'key']]);
+
+        engine.save({ some: new Map({ key: 42 }) });
+
+        expect(save).toBeCalledWith({ some: { key: 42 } });
+    });
+
+    it('should handle null values (PR #64)', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [['a', 'first']]);
+
+        engine.save({ a: { first: null, second: 2 } });
+
+        expect(save).toBeCalledWith({ a: { first: null } });
+    });
+
+    it('should handle null values (PR #64) - immutable', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [['a', 'first']]);
+
+        engine.save(new Map({ a: { first: null, second: 2 } }));
+
+        expect(save).toBeCalledWith({ a: { first: null } });
+    });
+
+    it('should have a empty blacklist by default', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, ['key']);
+
+        engine.save({ key: 'value' });
+
+        expect(save).toBeCalledWith({ key: 'value' });
+    });
+
+    it('should not save blacklisted keys', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, ['ignored'], ['ignored']);
+
+        engine.save({ key: 'value', ignored: true });
+
+        expect(save).toBeCalledWith({});
+    });
+
+    it('should not save blacklisted keys paths', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, ['key', 'some'], [['some', 'ignored']]);
+
+        engine.save({ key: 'value', some: { ignored: true } });
+
+        expect(save).toBeCalledWith({ key: 'value', some: {} });
+    });
+
+    it('should NOT change the passed state with a blacklist (issue #13)', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, null, [['some', 'a']]);
+
+        const state = { some: { a: 1, b: 2 } };
+        engine.save(state);
+
+        expect(state).toEqual({ some: { a: 1, b: 2 } });
+    });
+
+    it('should ignore not existing but blacklisted keys', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, ['key'], ['ignored']);
+
+        engine.save({ key: 'value' });
+
+        expect(save).toBeCalledWith({ key: 'value' });
+    });
+
+    it('should ignore not existing but blacklisted key paths', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, ['key'], [['some', 'ignored']]);
+
+        engine.save({ key: 'value' });
+
+        expect(save).toBeCalledWith({ key: 'value' });
+    });
+
+    it('should support blacklisting an immutable', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [['some', 'key']], [['some', 'key']]);
+
+        engine.save({ some: new Map({ key: 42 }) });
+
+        expect(save).toBeCalledWith({ some: {} });
+    });
+
+    it('should handle null values (PR #64)', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [['a', 'first']], [['a', 'first']]);
+
+        engine.save({ a: { first: null, second: 2 } });
+
+        expect(save).toBeCalledWith({ a: {} });
+    });
+
+    it('should handle null values (PR #64) - immutable', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [['a', 'first']], [['a', 'first']]);
+
+        engine.save(new Map({ a: { first: null, second: 2 } }));
+
+        expect(save).toBeCalledWith({ a: {} });
+    });
+
+    it('should support blacklist only', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, [], ['b']);
+
+        engine.save({ a: 1, b: 2 });
+
+        expect(save).toBeCalledWith({ a: 1 });
+    });
+
+    it('should support blacklist only - explicit null whitelist', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, null, ['b']);
+
+        engine.save({ a: 1, b: 2 });
+
+        expect(save).toBeCalledWith({ a: 1 });
+    });
+
+    it('should support multiple blacklist with partially similar path', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, null, [['a', '1'], ['a', '2']]);
+
+        engine.save({ a: { '1': 1, '2': 2, '3': 3 } });
+
+        expect(save).toBeCalledWith({ a: { '3': 3 } });
+    });
+
+    it('should support multiple blacklist with partially similar path - immutable', () => {
+        const save = jest.fn();
+        const engine = filter({ save }, ['a'], [['a', '1'], ['a', '2']]);
+
+        engine.save({ a: new Map({ '1': 1, '2': 2, '3': 3 }) });
+
+        expect(save).toBeCalledWith({ a: { '3': 3 } });
+    });
+});
