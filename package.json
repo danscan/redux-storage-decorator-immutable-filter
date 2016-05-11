@@ -1,6 +1,6 @@
 {
   "name": "redux-storage-decorator-immutable-filter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A better filter decorator to use with redux-storage (if your state is an immutable Map)",
   "main": "build/index.js",
   "scripts": {
